@@ -7,7 +7,7 @@ from ..b2b_client import B2BClient, get_b2b_client
 from ..database import get_db
 from ..errors import ApiError
 from ..models import Order
-from ..schemas import OrderCreateRequest
+from ..schemas import OrderCancelRequest, OrderCreateRequest
 from ..services import order_service
 
 router = APIRouter(prefix="/api/v1/orders", tags=["Orders"])
@@ -50,3 +50,11 @@ def get_order(order_id: str, buyer_id: str = Depends(get_current_buyer),
     if order is None or order.buyer_id != buyer_id:
         raise ApiError(404, "NOT_FOUND", "Order not found")
     return order_service.serialize_order(order)
+
+
+@router.post("/{order_id}/cancel")
+def cancel_order(order_id: str, body: OrderCancelRequest | None = None,
+                 buyer_id: str = Depends(get_current_buyer),
+                 db: Session = Depends(get_db), b2b: B2BClient = Depends(get_b2b_client)):
+    reason = body.reason if body else None
+    return order_service.cancel(db, b2b, buyer_id, order_id, reason)

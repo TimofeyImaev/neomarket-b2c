@@ -9,6 +9,7 @@ from ..b2b_client import B2BClient
 from ..errors import ApiError
 from ..models import IdempotencyKey, Order, OrderItem
 
+CANCELLABLE = {"CREATED", "PAID"}  # канон b2c-11: только эти статусы
 
 
 def _order_number() -> str:
@@ -109,3 +110,24 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
     db.commit()
     db.refresh(order)
     return serialize_order(order), 201
+
+
+def cancel(db: Session, b2b: B2BClient, buyer_id: str, order_id: str,
+           reason: str | None) -> dict:
+    """Канон b2c-11: CANCEL_PENDING -> unreserve -> CANCELLED (или остаётся PENDING при фейле)."""
+    order = db.get(Order, order_id)
+    if order is None or order.buyer_id != buyer_id:
+        raise ApiError(404, "NOT_FOUND", "Order not found")
+    if order.status not in CANCELLABLE:
+        raise ApiError(409, "CANCEL_NOT_ALLOWED",
+                       f"Order in status {order.status} cannot be cancelled",
+                       extra={"status": order.status})
+
+    order.status = "CANCEL_PENDING"
+    order.cancel_reason = reason
+    db.flush()
+    released = b2b.unreserve(order.id)
+    order.status = "CANCELLED" if released else "CANCEL_PENDING"
+    db.commit()
+    db.refresh(order)
+    return serialize_order(order)
