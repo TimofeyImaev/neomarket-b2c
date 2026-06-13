@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from .database import Base, engine
 from .errors import register_error_handlers
-from .routes import addresses, auth, payment_methods, catalog, cart
+from .routes import addresses, auth, payment_methods, catalog, cart, orders
 
 
 @asynccontextmanager
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(payment_methods.router)
     app.include_router(catalog.router)
     app.include_router(cart.router)
+    app.include_router(orders.router)
 
     @app.get("/health", tags=["infra"])
     def health():
