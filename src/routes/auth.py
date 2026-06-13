@@ -1,6 +1,6 @@
 import hashlib
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,7 @@ from ..database import get_db
 from ..errors import ApiError
 from ..models import Buyer
 from ..schemas import LoginRequest, RegisterRequest, TokenResponse
+from ..services import cart_service
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
 
@@ -43,8 +44,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(body: LoginRequest, db: Session = Depends(get_db),
+          x_session_id: str | None = Header(default=None)):
     buyer = db.scalar(select(Buyer).where(Buyer.email == body.email))
     if buyer is None or buyer.password_hash != _hash_pw(body.password):
         raise ApiError(401, "UNAUTHORIZED", "Invalid email or password")
+    # Merge гостевой корзины при логине: quantity = MAX(guest, auth)
+    if x_session_id:
+        cart_service.merge_session_into_buyer(db, x_session_id, buyer.id)
     return _tokens(buyer)
