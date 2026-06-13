@@ -1,4 +1,4 @@
-"""Каталог B2C по канон-flow b2c-1. B2C проксирует запросы к B2B."""
+"""Каталог B2C по канон-flow b2c-1/b2c-3. B2C проксирует запросы к B2B."""
 from fastapi import APIRouter, Depends, Query, Request
 
 from ..b2b_client import B2BClient, get_b2b_client
@@ -36,6 +36,44 @@ def list_products(
     if category_id:
         filters.setdefault("category_id", category_id)
     return b2b.list_products(limit=limit, offset=offset, q=search, sort=sort, filter_=filters)
+
+
+# Поля SKU, разрешённые покупателю (канон b2c-3). cost_price и reserved_quantity ИСКЛЮЧЕНЫ.
+def _serialize_sku(sku: dict) -> dict:
+    active = sku.get("active_quantity", 0)
+    return {
+        "id": sku.get("id"),
+        "name": sku.get("name"),
+        "price": sku.get("price"),
+        "discount": sku.get("discount", 0),
+        "image": sku.get("image"),
+        "active_quantity": active,
+        "in_stock": active > 0,  # SKU без остатка показывается с in_stock=false
+        "characteristics": sku.get("characteristics", []),
+    }
+
+
+def _serialize_card(product: dict) -> dict:
+    """Whitelist полей карточки для покупателя — защита от утечки данных продавца."""
+    return {
+        "id": product.get("id"),
+        "slug": product.get("slug"),
+        "title": product.get("title"),
+        "description": product.get("description"),
+        "images": product.get("images", []),
+        "status": product.get("status"),
+        "characteristics": product.get("characteristics", []),
+        "skus": [_serialize_sku(s) for s in product.get("skus", [])],
+    }
+
+
+@router.get("/products/{product_id}")
+def get_product(product_id: str, b2b: B2BClient = Depends(get_b2b_client)):
+    product = b2b.get_product(product_id)
+    # Заблокированный/удалённый товар не виден покупателю -> 404
+    if product is None or product.get("status") not in (None, "MODERATED") or product.get("deleted"):
+        raise ApiError(404, "NOT_FOUND", "Product not found")
+    return _serialize_card(product)
 
 
 @router.get("/catalog/facets")
