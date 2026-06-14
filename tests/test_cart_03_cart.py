@@ -97,7 +97,7 @@ def test_update_and_delete_item_by_id(app_client, fake_b2b):
     h = auth_headers(token)
     add = app_client.post("/api/v1/cart/items", headers=h, json={"sku_id": sku, "quantity": 1})
     item_id = add.json()["items"][0]["id"]
-    upd = app_client.put(f"/api/v1/cart/items/{item_id}", headers=h, json={"quantity": 4})
+    upd = app_client.patch(f"/api/v1/cart/items/{sku}", headers=h, json={"quantity": 4})
     assert upd.status_code == 200 and upd.json()["items"][0]["quantity"] == 4
     dele = app_client.delete(f"/api/v1/cart/items/{item_id}", headers=h)
     assert dele.status_code == 200 and dele.json()["items"] == []

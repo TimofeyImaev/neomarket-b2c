@@ -30,7 +30,7 @@ def test_catalog_returns_filtered_sorted_products(app_client, fake_b2b):
         return orig(limit=limit, offset=offset, q=q, sort=sort, filter_=filter_)
 
     fake_b2b.list_products = spy
-    r = app_client.get("/api/v1/products?category_id=cat-1&filters[brand]=Apple&sort=price_asc&limit=20&offset=0")
+    r = app_client.get("/api/v1/catalog/products?category_id=cat-1&filters[brand]=Apple&sort=price_asc&limit=20&offset=0")
     assert r.status_code == 200
     body = r.json()
     assert set(["items", "total_count", "limit", "offset"]).issubset(body)
@@ -59,7 +59,7 @@ def test_facets_return_counts_per_filter_value(app_client, fake_b2b):
 
 
 def test_invalid_sort_returns_400(app_client, fake_b2b):
-    r = app_client.get("/api/v1/products?sort=cheapest")
+    r = app_client.get("/api/v1/catalog/products?sort=cheapest")
     assert r.status_code == 400
     body = r.json()
     assert body["code"] == "INVALID_REQUEST"
@@ -69,7 +69,7 @@ def test_invalid_sort_returns_400(app_client, fake_b2b):
 
 def test_b2b_unavailable_returns_502(app_client, fake_b2b):
     fake_b2b.unavailable = True
-    r = app_client.get("/api/v1/products")
+    r = app_client.get("/api/v1/catalog/products")
     assert r.status_code in (502, 503)
     assert r.json()["code"] == "B2B_UNAVAILABLE"
 
@@ -78,15 +78,15 @@ def test_b2b_unavailable_returns_502(app_client, fake_b2b):
 
 def test_catalog_is_public_no_auth_required(app_client, fake_b2b):
     _seed_catalog(fake_b2b, 1)
-    assert app_client.get("/api/v1/products").status_code == 200
+    assert app_client.get("/api/v1/catalog/products").status_code == 200
 
 
 def test_catalog_empty_returns_empty_items(app_client, fake_b2b):
     fake_b2b.list_result = {"items": [], "total_count": 0, "limit": 20, "offset": 0}
-    r = app_client.get("/api/v1/products")
+    r = app_client.get("/api/v1/catalog/products")
     assert r.status_code == 200 and r.json()["items"] == [] and r.json()["total_count"] == 0
 
 
 def test_catalog_limit_over_max_returns_400(app_client, fake_b2b):
-    r = app_client.get("/api/v1/products?limit=500")
+    r = app_client.get("/api/v1/catalog/products?limit=500")
     assert r.status_code == 400 and r.json()["code"] == "INVALID_REQUEST"

@@ -19,7 +19,7 @@ def _parse_filters(request: Request) -> dict:
     return out
 
 
-@router.get("/products")
+@router.get("/catalog/products")
 def list_products(
     request: Request,
     limit: int = Query(default=20, ge=1, le=100),
@@ -67,7 +67,7 @@ def _serialize_card(product: dict) -> dict:
     }
 
 
-@router.get("/products/{product_id}")
+@router.get("/catalog/products/{product_id}")
 def get_product(product_id: str, b2b: B2BClient = Depends(get_b2b_client)):
     product = b2b.get_product(product_id)
     # Заблокированный/удалённый товар не виден покупателю -> 404
