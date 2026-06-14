@@ -126,7 +126,8 @@ def cancel(db: Session, b2b: B2BClient, buyer_id: str, order_id: str,
     order.status = "CANCEL_PENDING"
     order.cancel_reason = reason
     db.flush()
-    released = b2b.unreserve(order.id)
+    reserve_items = [{"sku_id": it.sku_id, "quantity": it.quantity} for it in order.items]
+    released = b2b.unreserve(order.id, reserve_items)
     order.status = "CANCELLED" if released else "CANCEL_PENDING"
     db.commit()
     db.refresh(order)

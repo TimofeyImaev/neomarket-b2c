@@ -75,7 +75,6 @@ class OrderItemRequest(BaseModel):
 
 
 class OrderCreateRequest(BaseModel):
-    idempotency_key: str = Field(min_length=1)
     items: list[OrderItemRequest] = Field(min_length=1)
     delivery_address: str | None = Field(default=None, max_length=500)
 

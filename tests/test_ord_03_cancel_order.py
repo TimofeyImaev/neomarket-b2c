@@ -9,9 +9,9 @@ from tests.conftest import auth_headers, register_buyer
 
 def _place_order(app_client, fake_b2b, token):
     sku = fake_b2b.add_sku(str(uuid.uuid4()), str(uuid.uuid4()), price=1000, available=10)
-    r = app_client.post("/api/v1/orders", headers=auth_headers(token),
-                        json={"idempotency_key": str(uuid.uuid4()),
-                              "items": [{"sku_id": sku, "quantity": 1}]})
+    r = app_client.post("/api/v1/orders",
+                        headers={**auth_headers(token), "Idempotency-Key": str(uuid.uuid4())},
+                        json={"items": [{"sku_id": sku, "quantity": 1}]})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 

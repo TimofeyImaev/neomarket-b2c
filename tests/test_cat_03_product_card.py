@@ -19,7 +19,7 @@ def _moderated_product(pid, sku_extra=None):
 def test_product_card_returns_full_data_with_skus(app_client, fake_b2b):
     pid = str(uuid.uuid4())
     fake_b2b.products[pid] = _moderated_product(pid)
-    r = app_client.get(f"/api/v1/products/{pid}")
+    r = app_client.get(f"/api/v1/catalog/products/{pid}")
     assert r.status_code == 200
     body = r.json()
     assert body["id"] == pid
@@ -32,7 +32,7 @@ def test_product_card_returns_full_data_with_skus(app_client, fake_b2b):
 def test_cost_price_absent_in_response(app_client, fake_b2b):
     pid = str(uuid.uuid4())
     fake_b2b.products[pid] = _moderated_product(pid)
-    r = app_client.get(f"/api/v1/products/{pid}")
+    r = app_client.get(f"/api/v1/catalog/products/{pid}")
     assert r.status_code == 200
     sku0 = r.json()["skus"][0]
     assert "cost_price" not in sku0           # утечка закупочной цены недопустима
@@ -44,13 +44,13 @@ def test_blocked_product_returns_404(app_client, fake_b2b):
     prod = _moderated_product(pid)
     prod["status"] = "BLOCKED"
     fake_b2b.products[pid] = prod
-    assert app_client.get(f"/api/v1/products/{pid}").status_code == 404
+    assert app_client.get(f"/api/v1/catalog/products/{pid}").status_code == 404
 
 
 def test_sku_without_stock_is_shown_as_unavailable(app_client, fake_b2b):
     pid = str(uuid.uuid4())
     fake_b2b.products[pid] = _moderated_product(pid, sku_extra={"active_quantity": 0})
-    r = app_client.get(f"/api/v1/products/{pid}")
+    r = app_client.get(f"/api/v1/catalog/products/{pid}")
     assert r.status_code == 200
     sku0 = r.json()["skus"][0]
     assert sku0["active_quantity"] == 0 and sku0["in_stock"] is False

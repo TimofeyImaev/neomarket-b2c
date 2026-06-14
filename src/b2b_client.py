@@ -24,7 +24,7 @@ class B2BClient(Protocol):
 
     def reserve(self, order_id: str, items: list[dict]) -> tuple[bool, list[dict]]: ...
 
-    def unreserve(self, order_id: str) -> bool: ...
+    def unreserve(self, order_id: str, items: list[dict] | None = None) -> bool: ...
 
 
 class HttpB2BClient:
@@ -51,7 +51,7 @@ class HttpB2BClient:
             params[f"filter[{k}]"] = v
         try:
             with self._client() as c:
-                r = c.get("/api/v1/products", params=params)
+                r = c.get("/api/v1/public/products", params=params)
         except httpx.HTTPError:
             raise self._unavailable()
         if r.status_code >= 500:
@@ -61,14 +61,16 @@ class HttpB2BClient:
     def get_product(self, product_id):
         try:
             with self._client() as c:
-                r = c.get(f"/api/v1/products/{product_id}")
+                r = c.post("/api/v1/public/products/batch",
+                           json={"product_ids": [product_id]})
         except httpx.HTTPError:
             raise self._unavailable()
         if r.status_code == 404:
             return None
         if r.status_code >= 500:
             raise self._unavailable()
-        return r.json()
+        items = r.json().get("items", [])
+        return items[0] if items else None
 
     def get_skus(self, sku_ids):
         if not sku_ids:
@@ -101,7 +103,8 @@ class HttpB2BClient:
         """Возвращает (ok, failed_items). failed_items проксируется из B2B без трансформации."""
         try:
             with self._client() as c:
-                r = c.post("/api/v1/reserve", json={"order_id": order_id, "items": items})
+                r = c.post("/api/v1/inventory/reserve",
+                           json={"order_id": order_id, "items": items})
         except httpx.HTTPError:
             raise self._unavailable()
         if r.status_code == 200:
@@ -110,10 +113,11 @@ class HttpB2BClient:
             return False, r.json().get("failed_items", [])
         raise self._unavailable()
 
-    def unreserve(self, order_id):
+    def unreserve(self, order_id, items=None):
         try:
             with self._client() as c:
-                r = c.post("/api/v1/unreserve", json={"order_id": order_id})
+                r = c.post("/api/v1/inventory/unreserve",
+                           json={"order_id": order_id, "items": items or []})
         except httpx.HTTPError:
             return False
         return r.status_code == 200

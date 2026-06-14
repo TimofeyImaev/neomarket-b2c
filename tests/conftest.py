@@ -62,7 +62,7 @@ class FakeB2BClient:
             return True, []
         return False, self.failed_items
 
-    def unreserve(self, order_id):
+    def unreserve(self, order_id, items=None):
         self.unreserved.append(order_id)
         return self.unreserve_ok
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,11 +17,14 @@ router = APIRouter(prefix="/api/v1/orders", tags=["Orders"])
 def create_order(
     body: OrderCreateRequest,
     response: Response,
+    idempotency_key: str = Header(alias="Idempotency-Key"),
     buyer_id: str = Depends(get_current_buyer),
     db: Session = Depends(get_db),
     b2b: B2BClient = Depends(get_b2b_client),
 ):
-    payload, code = order_service.checkout(db, b2b, buyer_id, body.model_dump())
+    payload_dict = body.model_dump()
+    payload_dict["idempotency_key"] = idempotency_key
+    payload, code = order_service.checkout(db, b2b, buyer_id, payload_dict)
     response.status_code = code
     return payload
 

@@ -57,12 +57,12 @@ def add_item(body: CartItemAddRequest, response: Response,
     return cart_service.serialize_cart(cart, b2b)
 
 
-@router.put("/items/{item_id}")
-def update_item(item_id: str, body: CartItemQuantityRequest,
+@router.patch("/items/{sku_id}")
+def update_item(sku_id: str, body: CartItemQuantityRequest,
                 owner: CartOwner = Depends(get_cart_owner),
                 db: Session = Depends(get_db), b2b: B2BClient = Depends(get_b2b_client)):
     cart = cart_service.get_or_create_cart(db, owner.key)
-    item = cart_service.find_item_by_id(cart, item_id)  # IDOR: чужой item -> 404
+    item = cart_service.find_item_by_sku(cart, sku_id)  # lookup by SKU id
     if item is None:
         raise ApiError(404, "NOT_FOUND", "Item not found in cart")
     sku = b2b.get_skus([item.sku_id]).get(item.sku_id)
