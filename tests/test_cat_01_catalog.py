@@ -30,7 +30,7 @@ def test_catalog_returns_filtered_sorted_products(app_client, fake_b2b):
         return orig(limit=limit, offset=offset, q=q, sort=sort, filter_=filter_)
 
     fake_b2b.list_products = spy
-    r = app_client.get("/api/v1/catalog/products?category_id=cat-1&filters[brand]=Apple&sort=price_asc&limit=20&offset=0")
+    r = app_client.get("/api/v1/catalog/products?category_id=cat-1&filter[brand]=Apple&sort=price_asc&limit=20&offset=0")
     assert r.status_code == 200
     body = r.json()
     assert set(["items", "total_count", "limit", "offset"]).issubset(body)
@@ -51,7 +51,7 @@ def test_facets_return_counts_per_filter_value(app_client, fake_b2b):
             ]},
         ],
     }
-    r = app_client.get("/api/v1/catalog/facets?category_id=cat-1&filters[brand]=Apple")
+    r = app_client.get("/api/v1/catalog/facets?category_id=cat-1&filter[brand]=Apple")
     assert r.status_code == 200
     body = r.json()
     assert body["facets"][0]["name"] == "brand"
@@ -63,8 +63,8 @@ def test_invalid_sort_returns_400(app_client, fake_b2b):
     assert r.status_code == 400
     body = r.json()
     assert body["code"] == "INVALID_REQUEST"
-    # в сообщении перечислены допустимые значения
-    assert "price_asc" in body["message"] and "rating" in body["message"]
+    # в сообщении перечисленые допустимые значения
+    assert "price_asc" in body["message"] and "new" in body["message"]
 
 
 def test_b2b_unavailable_returns_502(app_client, fake_b2b):
