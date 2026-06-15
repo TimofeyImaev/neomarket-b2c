@@ -45,7 +45,7 @@ def add_item(body: CartItemAddRequest, response: Response,
         raise ApiError(409, "CONFLICT", "Not enough stock for requested quantity")
 
     if existing:
-        existing.quantity = desired  # повторное добавление -> увеличиваем quantity
+        existing.quantity = desired
         code = status.HTTP_200_OK
     else:
         cart.items.append(CartItem(sku_id=body.sku_id, quantity=body.quantity,
@@ -62,7 +62,7 @@ def update_item(sku_id: str, body: CartItemQuantityRequest,
                 owner: CartOwner = Depends(get_cart_owner),
                 db: Session = Depends(get_db), b2b: B2BClient = Depends(get_b2b_client)):
     cart = cart_service.get_or_create_cart(db, owner.key)
-    item = cart_service.find_item_by_sku(cart, sku_id)  # lookup by SKU id
+    item = cart_service.find_item_by_sku(cart, sku_id)
     if item is None:
         raise ApiError(404, "NOT_FOUND", "Item not found in cart")
     sku = b2b.get_skus([item.sku_id]).get(item.sku_id)
@@ -74,11 +74,11 @@ def update_item(sku_id: str, body: CartItemQuantityRequest,
     return cart_service.serialize_cart(cart, b2b)
 
 
-@router.delete("/items/{item_id}")
-def delete_item(item_id: str, owner: CartOwner = Depends(get_cart_owner),
+@router.delete("/items/{sku_id}")
+def delete_item(sku_id: str, owner: CartOwner = Depends(get_cart_owner),
                 db: Session = Depends(get_db), b2b: B2BClient = Depends(get_b2b_client)):
     cart = cart_service.get_or_create_cart(db, owner.key)
-    item = cart_service.find_item_by_id(cart, item_id)
+    item = cart_service.find_item_by_sku(cart, sku_id)
     if item is None:
         raise ApiError(404, "NOT_FOUND", "Item not found in cart")
     db.delete(item)
