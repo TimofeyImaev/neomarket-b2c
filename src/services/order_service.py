@@ -9,7 +9,7 @@ from ..b2b_client import B2BClient
 from ..errors import ApiError
 from ..models import IdempotencyKey, Order, OrderItem
 
-CANCELLABLE = {"CREATED", "PAID"}  # канон b2c-11: только эти статусы
+CANCELLABLE = {"CREATED", "PAID", "ASSEMBLING", "DELIVERING"}  # b2c/openapi.yaml:699
 
 
 def _order_number() -> str:
@@ -76,7 +76,7 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
             raise ApiError(409, "CONFLICT", "idempotency_key переиспользован с другим телом")
         return serialize_order(db.get(Order, existing.order_id)), 201
 
-    # 1-3. Получаем актуальные данные SKU из B2B (цены/наличие/доступность)
+    # 1-3. Получаем актуальные данные SKU из B2B (цены!наличие/доступность)
     sku_ids = [i["sku_id"] for i in items]
     sku_info = b2b.get_skus(sku_ids)  # бросит 503 B2B_UNAVAILABLE если B2B недоступен
 
@@ -88,7 +88,7 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
         raise ApiError(409, "RESERVE_FAILED", "Не удалось зарезервировать товары",
                        extra={"failed_items": failed_items})
 
-    # 5. Создаём Order со статусом PAID и фиксируем цены в OrderItem
+    # 5. Создаём Order со статусом PAID и фиксируем ценым в OrderItem
     order = Order(id=order_id, number=_order_number(), buyer_id=buyer_id, status="PAID",
                   delivery_address=body.get("delivery_address"),
                   paid_at=datetime.now(timezone.utc))
@@ -114,7 +114,7 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
 
 def cancel(db: Session, b2b: B2BClient, buyer_id: str, order_id: str,
            reason: str | None) -> dict:
-    """Канон b2c-11: CANCEL_PENDING -> unreserve -> CANCELLED (или остаётся PENDING при фейле)."""
+    """Канон b2c-11: CACCEL_PENDING -> unreserve -> CANCELLED (или остаётся PENDING при фейле)."""
     order = db.get(Order, order_id)
     if order is None or order.buyer_id != buyer_id:
         raise ApiError(404, "NOT_FOUND", "Order not found")
