@@ -45,15 +45,14 @@ def test_unreserve_failure_transitions_to_cancel_pending(app_client, fake_b2b):
     assert r.json()["status"] == "CANCEL_PENDING"  # намерение принято, retry асинхронно
 
 
-def test_cancel_assembling_order_returns_409(app_client, fake_b2b):
+def test_cancel_assembling_order_transitions_to_cancelled(app_client, fake_b2b):
+    """b2c/openapi.yaml:699: ASSEMBLING is cancellable."""
     token, _ = register_buyer(app_client)
     oid = _place_order(app_client, fake_b2b, token)
-    _set_status(app_client, oid, "ASSEMBLING")  # ушёл в сборку
+    _set_status(app_client, oid, "ASSEMBLING")
     r = app_client.post(f"/api/v1/orders/{oid}/cancel", headers=auth_headers(token))
-    assert r.status_code == 409
-    body = r.json()
-    assert body["code"] == "CANCEL_NOT_ALLOWED"
-    assert body["status"] == "ASSEMBLING"  # возвращается текущий статус
+    assert r.status_code == 200
+    assert r.json()["status"] == "CANCELLED"
 
 
 def test_other_user_order_returns_404(app_client, fake_b2b):

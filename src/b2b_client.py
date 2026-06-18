@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import uuid
 from typing import Protocol
 
 import httpx
@@ -38,7 +39,6 @@ class HttpB2BClient:
         return httpx.Client(base_url=self._base, headers=self._headers, timeout=5.0)
 
     def _unavailable(self) -> ApiError:
-        # Канон: единый код для недоступности B2B
         return ApiError(503, "B2B_UNAVAILABLE", "Сервис товаров временно недоступен, попробуйте позже")
 
     def list_products(self, *, limit, offset, q, sort, filter_):
@@ -47,8 +47,9 @@ class HttpB2BClient:
             params["q"] = q
         if sort:
             params["sort"] = sort
+        # B2B openapi.yaml:765 — deepObject param name is "filters" (plural)
         for k, v in (filter_ or {}).items():
-            params[f"filter[{k}]"] = v
+            params[f"filters[{k}]"] = v
         try:
             with self._client() as c:
                 r = c.get("/api/v1/public/products", params=params)
@@ -69,20 +70,33 @@ class HttpB2BClient:
             return None
         if r.status_code >= 500:
             raise self._unavailable()
-        items = r.json().get("items", [])
-        return items[0] if items else None
+        # B2B openapi.yaml:835-838 — response is a plain array, NOT {"items": [...]}
+        items = r.json()
+        if isinstance(items, list):
+            return items[0] if items else None
+        # fallback: если B2B вернул обёртку
+        return items.get("items", [None])[0] if items else None
 
     def get_skus(self, sku_ids):
+        """GET /api/v1/public/skus/{sku_id} per SKU (B2B openapi.yaml)."""
         if not sku_ids:
             return {}
+        result: dict[str, dict] = {}
         try:
             with self._client() as c:
-                r = c.post("/api/v1/skus/batch", json={"sku_ids": sku_ids})
+                for sku_id in sku_ids:
+                    r = c.get(f"/api/v1/public/skus/{sku_id}")
+                    if r.status_code == 200:
+                        data = r.json()
+                        # Normalize: expose available_quantity for B2C cart logic
+                        if "stock_quantity" in data and "available_quantity" not in data:
+                            data["available_quantity"] = data.get("stock_quantity", 0)
+                        result[sku_id] = data
+                    elif r.status_code >= 500:
+                        raise self._unavailable()
         except httpx.HTTPError:
             raise self._unavailable()
-        if r.status_code >= 500:
-            raise self._unavailable()
-        return {item["sku_id"]: item for item in r.json().get("items", [])}
+        return result
 
     def get_facets(self, *, category_id, filters):
         params: dict = {}
@@ -104,7 +118,11 @@ class HttpB2BClient:
         try:
             with self._client() as c:
                 r = c.post("/api/v1/inventory/reserve",
-                           json={"order_id": order_id, "items": items})
+                           json={
+                               "idempotency_key": order_id,  # B2B openapi required
+                               "order_id": order_id,
+                               "items": items,
+                           })
         except httpx.HTTPError:
             raise self._unavailable()
         if r.status_code == 200:

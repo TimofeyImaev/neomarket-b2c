@@ -6,16 +6,16 @@ from ..errors import ApiError
 
 router = APIRouter(prefix="/api/v1", tags=["Catalog"])
 
-# Сортировки из канон-flow b2c-1
-ALLOWED_SORT = ["rating", "popularity", "price_asc", "price_desc", "date_desc", "discount_desc"]
+# b2c/openapi.yaml:314 — допустимые значения sort
+ALLOWED_SORT = ["price_asc", "price_desc", "popularity", "new"]
 
 
 def _parse_filters(request: Request) -> dict:
-    """deepObject-стиль канона: ?filters[brand]=Apple&filters[color]=black"""
+    """deepObject-стиль: ?filter[brand]=Apple&filter[color]=black"""
     out: dict = {}
     for raw_key, value in request.query_params.multi_items():
-        if raw_key.startswith("filters[") and raw_key.endswith("]"):
-            out[raw_key[len("filters["):-1]] = value
+        if raw_key.startswith("filter[") and raw_key.endswith("]"):
+            out[raw_key[len("filter["):-1]] = value
     return out
 
 
@@ -26,7 +26,7 @@ def list_products(
     offset: int = Query(default=0, ge=0),
     search: str | None = Query(default=None, max_length=255),
     category_id: str | None = Query(default=None),
-    sort: str = Query(default="rating"),
+    sort: str = Query(default="popularity"),
     b2b: B2BClient = Depends(get_b2b_client),
 ):
     if sort not in ALLOWED_SORT:
@@ -48,7 +48,7 @@ def _serialize_sku(sku: dict) -> dict:
         "discount": sku.get("discount", 0),
         "image": sku.get("image"),
         "active_quantity": active,
-        "in_stock": active > 0,  # SKU без остатка показывается с in_stock=false
+        "in_stock": active > 0,
         "characteristics": sku.get("characteristics", []),
     }
 
@@ -70,7 +70,6 @@ def _serialize_card(product: dict) -> dict:
 @router.get("/catalog/products/{product_id}")
 def get_product(product_id: str, b2b: B2BClient = Depends(get_b2b_client)):
     product = b2b.get_product(product_id)
-    # Заблокированный/удалённый товар не виден покупателю -> 404
     if product is None or product.get("status") not in (None, "MODERATED") or product.get("deleted"):
         raise ApiError(404, "NOT_FOUND", "Product not found")
     return _serialize_card(product)
