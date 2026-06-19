@@ -63,7 +63,7 @@ def test_invalid_sort_returns_400(app_client, fake_b2b):
     assert r.status_code == 400
     body = r.json()
     assert body["code"] == "INVALID_REQUEST"
-    # в сообщении перечисленые допустимые значения
+    # в сообщении перечислены допустимые значения
     assert "price_asc" in body["message"] and "new" in body["message"]
 
 

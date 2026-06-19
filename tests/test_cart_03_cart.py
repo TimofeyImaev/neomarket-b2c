@@ -1,5 +1,5 @@
 """US-CART-03 — корзина покупателя. DoD-квест us-cart-03: канон-flow b2c-8.
-Имена тестов — ТОЧ��О из DoD.
+Имена тестов — ТОЧНО из DoD.
 """
 import uuid
 
@@ -41,7 +41,7 @@ def test_unavailable_sku_shown_with_reason(app_client, fake_b2b):
     sku = fake_b2b.add_sku(str(uuid.uuid4()), str(uuid.uuid4()), price=700, available=5)
     h = auth_headers(token)
     app_client.post("/api/v1/cart/items", headers=h, json={"sku_id": sku, "quantity": 2})
-    # товар закончилсь после добавления
+    # товар закончился после добавления
     fake_b2b.skus[sku]["available_quantity"] = 0
     r = app_client.get("/api/v1/cart", headers=h)
     body = r.json()

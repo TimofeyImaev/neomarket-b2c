@@ -75,6 +75,8 @@ class OrderItemRequest(BaseModel):
 
 
 class OrderCreateRequest(BaseModel):
+    # idempotency_key может приходить как тело ИЛИ как заголовок Idempotency-Key
+    idempotency_key: str | None = Field(default=None)
     items: list[OrderItemRequest] = Field(min_length=1)
     delivery_address: str | None = Field(default=None, max_length=500)
 
