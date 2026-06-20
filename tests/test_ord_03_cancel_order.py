@@ -8,10 +8,14 @@ from tests.conftest import auth_headers, register_buyer
 
 
 def _place_order(app_client, fake_b2b, token):
+    """Помещаем SKU в корзину, затем оформляем заказ (checkout читает из корзины)."""
     sku = fake_b2b.add_sku(str(uuid.uuid4()), str(uuid.uuid4()), price=1000, available=10)
+    h = auth_headers(token)
+    # Add to cart — checkout reads items from cart per b2c/openapi.yaml:1241-1249
+    app_client.post("/api/v1/cart/items", headers=h, json={"sku_id": sku, "quantity": 1})
     r = app_client.post("/api/v1/orders",
-                        headers={**auth_headers(token), "Idempotency-Key": str(uuid.uuid4())},
-                        json={"items": [{"sku_id": sku, "quantity": 1}]})
+                        headers={**h, "Idempotency-Key": str(uuid.uuid4())},
+                        json={})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
