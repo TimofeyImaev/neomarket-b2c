@@ -71,7 +71,7 @@ def serialize_cart(cart: Cart, b2b: B2BClient) -> dict:
             "quantity": item.quantity,
             "unit_price": unit_price,
             "line_total": line_total,
-            "available": available,
+            "is_available": available,          # renamed: available → is_available (b2c/openapi.yaml:1186)
             "unavailable_reason": reason,
             "available_quantity": (sku or {}).get("available_quantity", 0),
             "image": (sku or {}).get("image"),
@@ -80,13 +80,9 @@ def serialize_cart(cart: Cart, b2b: B2BClient) -> dict:
     return {
         "id": cart.id,
         "items": items_out,
-        "summary": {
-            "total_amount": total_amount,
-            "total_items": total_items,
-            "unavailable_count": unavailable_count,
-            "checkout_ready": unavailable_count == 0 and len(items_out) > 0,
-        },
-        "checkout_payload": {"items": checkout_items},
+        "items_count": len(items_out),          # top-level per b2c/openapi.yaml:1192-1209
+        "subtotal": total_amount,               # sum of available items only
+        "is_valid": unavailable_count == 0 and len(items_out) > 0,
     }
 
 

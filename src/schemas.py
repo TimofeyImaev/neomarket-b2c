@@ -69,16 +69,10 @@ class CartItemQuantityRequest(BaseModel):
 
 
 # ----- Orders (канон b2c-9 checkout) -----
-class OrderItemRequest(BaseModel):
-    sku_id: str
-    quantity: int = Field(ge=1)
-
-
 class OrderCreateRequest(BaseModel):
-    # idempotency_key может приходить как тело ИЛИ как заголовок Idempotency-Key
-    idempotency_key: str | None = Field(default=None)
-    items: list[OrderItemRequest] = Field(min_length=1)
-    delivery_address: str | None = Field(default=None, max_length=500)
+    # По b2c/openapi.yaml:1241-1249: items берутся из корзины, не из тела
+    address_id: str | None = Field(default=None)
+    payment_method_id: str | None = Field(default=None)
 
 
 class OrderCancelRequest(BaseModel):
