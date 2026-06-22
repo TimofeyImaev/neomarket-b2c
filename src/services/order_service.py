@@ -5,9 +5,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+import json as _json
+
 from ..b2b_client import B2BClient
 from ..errors import ApiError
-from ..models import IdempotencyKey, Order, OrderItem
+from ..models import Address, IdempotencyKey, Order, OrderItem
 
 CANCELLABLE = {"CREATED", "PAID", "ASSEMBLING", "DELIVERING"}  # b2c/openapi.yaml:699
 
@@ -31,17 +33,30 @@ def _hash_request(body: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _parse_address(raw: str | None) -> dict | None:
+    """Return AddressResponse object stored as JSON snapshot, or None."""
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return {"id": raw}  # legacy: raw is plain address_id
+
+
 def serialize_order(order: Order) -> dict:
     """Ответ по канон-flow b2c-9 (Response 201)."""
     return {
         "id": order.id,
         "number": order.number,
+        "buyer_id": order.buyer_id,
         "status": order.status,
         "items": [
             {
                 "id": it.id,
                 "sku_id": it.sku_id,
                 "product_id": it.product_id,
+                "name": it.sku_name or it.product_title,
                 "product_title": it.product_title,
                 "sku_name": it.sku_name,
                 "quantity": it.quantity,
@@ -50,8 +65,9 @@ def serialize_order(order: Order) -> dict:
             }
             for it in order.items
         ],
-        "total_amount": order.total_amount,
-        "delivery_address": order.delivery_address,
+        "subtotal": order.total_amount,
+        "total": order.total_amount,
+        "address": _parse_address(order.delivery_address),
         "cancel_reason": order.cancel_reason,
         "created_at": _iso(order.created_at),
         "updated_at": _iso(order.updated_at),
@@ -96,8 +112,23 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict,
                        extra={"failed_items": failed_items})
 
     # 5. Создаём Order со статусом PAID и фиксируем цены в OrderItem
+    # Сохраняем снапшот адреса как JSON (b2c/openapi.yaml:1315 AddressResponse)
+    address_id = body.get("address_id")
+    address_snapshot: str | None = None
+    if address_id:
+        addr = db.get(Address, address_id)
+        if addr:
+            address_snapshot = _json.dumps({
+                "id": addr.id, "country": addr.country, "region": None,
+                "city": addr.city, "street": addr.street, "building": addr.building,
+                "apartment": addr.apartment, "postal_code": addr.postal_code,
+                "recipient_name": addr.recipient_name, "recipient_phone": addr.recipient_phone,
+                "is_default": addr.is_default, "comment": addr.comment,
+            }, ensure_ascii=False)
+        else:
+            address_snapshot = _json.dumps({"id": address_id})
     order = Order(id=order_id, number=_order_number(), buyer_id=buyer_id, status="PAID",
-                  delivery_address=body.get("address_id"),
+                  delivery_address=address_snapshot,
                   paid_at=datetime.now(timezone.utc))
     total = 0
     for i in items:
