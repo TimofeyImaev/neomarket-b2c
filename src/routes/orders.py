@@ -17,14 +17,13 @@ router = APIRouter(prefix="/api/v1/orders", tags=["Orders"])
 def create_order(
     body: OrderCreateRequest,
     response: Response,
-    idempotency_key: str = Header(alias="Idempotency-Key"),
+    idempotency_key_header: str | None = Header(default=None, alias="Idempotency-Key"),
     buyer_id: str = Depends(get_current_buyer),
     db: Session = Depends(get_db),
     b2b: B2BClient = Depends(get_b2b_client),
 ):
-    payload_dict = body.model_dump()
-    payload_dict["idempotency_key"] = idempotency_key
-    payload, code = order_service.checkout(db, b2b, buyer_id, payload_dict)
+    payload, code = order_service.checkout(db, b2b, buyer_id, body.model_dump(),
+                                            idempotency_key=idempotency_key_header)
     response.status_code = code
     return payload
 

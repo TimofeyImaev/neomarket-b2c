@@ -58,14 +58,15 @@ def serialize_order(order: Order) -> dict:
     }
 
 
-def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[dict, int]:
-    """Канон b2c-9: idempotency check -> валидация items -> reserve (all-or-nothing) -> Order PAID."""
-    idem = body.get("idempotency_key")
-    items = body.get("items") or []
+def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict,
+             idempotency_key: str | None = None) -> tuple[dict, int]:
+    """Канон b2c-9: idempotency check -> cart items -> reserve (all-or-nothing) -> Order PAID."""
+    from sqlalchemy import select
+    from ..models import Cart
+
+    idem = idempotency_key or body.get("idempotency_key")
     if not idem:
-        raise ApiError(400, "INVALID_REQUEST", "idempotency_key обязателен")
-    if not items:
-        raise ApiError(400, "INVALID_REQUEST", "Список items не может быть пустым")
+        raise ApiError(400, "INVALID_REQUEST", "Idempotency-Key header обязателен")
 
     # 0. Idempotency: повтор с тем же ключом -> существующий заказ
     key = f"{buyer_id}:{idem}"
@@ -76,11 +77,17 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
             raise ApiError(409, "CONFLICT", "idempotency_key переиспользован с другим телом")
         return serialize_order(db.get(Order, existing.order_id)), 201
 
-    # 1-3. Получаем актуальные данные SKU из B2B (цены!наличие/доступность)
-    sku_ids = [i["sku_id"] for i in items]
-    sku_info = b2b.get_skus(sku_ids)  # бросит 503 B2B_UNAVAILABLE если B2B недоступен
+    # 1. Читаем items из корзины покупателя (b2c/openapi.yaml:1241-1249)
+    cart = db.scalar(select(Cart).where(Cart.owner_key == f"buyer:{buyer_id}"))
+    if cart is None or len(cart.items) == 0:
+        raise ApiError(400, "INVALID_REQUEST", "Корзина пуста")
+    items = [{"sku_id": it.sku_id, "quantity": it.quantity} for it in cart.items]
 
-    # 4. Reserve в B2B (all-or-nothing). Идемпотентность по order_id.
+    # 2-3. Получаем актуальные данные SKU из B2B — бросит 503 B2B_UNAVAILABLE если недоступен
+    sku_ids = [i["sku_id"] for i in items]
+    sku_info = b2b.get_skus(sku_ids)
+
+    # 4. Reserve в B2B (all-or-nothing).
     order_id = str(uuid.uuid4())
     reserve_items = [{"sku_id": i["sku_id"], "quantity": i["quantity"]} for i in items]
     ok, failed_items = b2b.reserve(order_id, reserve_items)
@@ -88,9 +95,9 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
         raise ApiError(409, "RESERVE_FAILED", "Не удалось зарезервировать товары",
                        extra={"failed_items": failed_items})
 
-    # 5. Создаём Order со статусом PAID и фиксируем ценым в OrderItem
+    # 5. Создаём Order со статусом PAID и фиксируем цены в OrderItem
     order = Order(id=order_id, number=_order_number(), buyer_id=buyer_id, status="PAID",
-                  delivery_address=body.get("delivery_address"),
+                  delivery_address=body.get("address_id"),
                   paid_at=datetime.now(timezone.utc))
     total = 0
     for i in items:
@@ -114,7 +121,7 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict) -> tuple[di
 
 def cancel(db: Session, b2b: B2BClient, buyer_id: str, order_id: str,
            reason: str | None) -> dict:
-    """Канон b2c-11: CACCEL_PENDING -> unreserve -> CANCELLED (или остаётся PENDING при фейле)."""
+    """Канон b2c-11: CANCEL_PENDING -> unreserve -> CANCELLED (или остаётся PENDING при фейле)."""
     order = db.get(Order, order_id)
     if order is None or order.buyer_id != buyer_id:
         raise ApiError(404, "NOT_FOUND", "Order not found")

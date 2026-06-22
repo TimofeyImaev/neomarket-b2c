@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from .database import Base, engine
 from .errors import register_error_handlers
-from .routes import addresses, auth, payment_methods, catalog, cart, orders
+from .routes import addresses, auth, payment_methods, cart, catalog, orders
 
 
 @asynccontextmanager

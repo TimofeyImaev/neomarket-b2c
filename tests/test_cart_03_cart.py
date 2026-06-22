@@ -1,5 +1,5 @@
 """US-CART-03 — корзина покупателя. DoD-квест us-cart-03: канон-flow b2c-8.
-Имена тестов — ТОЧ��О из DoD.
+Имена тестов — ТОЧНО из DoD.
 """
 import uuid
 
@@ -32,8 +32,8 @@ def test_get_cart_enriched_with_b2b_data(app_client, fake_b2b):
     item = body["items"][0]
     assert item["unit_price"] == 700        # цена обогащена из B2B
     assert item["line_total"] == 1400
-    assert item["available"] is True
-    assert body["summary"]["total_amount"] == 1400
+    assert item["is_available"] is True
+    assert body["subtotal"] == 1400
 
 
 def test_unavailable_sku_shown_with_reason(app_client, fake_b2b):
@@ -41,16 +41,16 @@ def test_unavailable_sku_shown_with_reason(app_client, fake_b2b):
     sku = fake_b2b.add_sku(str(uuid.uuid4()), str(uuid.uuid4()), price=700, available=5)
     h = auth_headers(token)
     app_client.post("/api/v1/cart/items", headers=h, json={"sku_id": sku, "quantity": 2})
-    # товар закончилсь после добавления
+    # товар закончился после добавления
     fake_b2b.skus[sku]["available_quantity"] = 0
     r = app_client.get("/api/v1/cart", headers=h)
     body = r.json()
     item = body["items"][0]
-    assert item["available"] is False
+    assert item["is_available"] is False
     assert item["unavailable_reason"] == "OUT_OF_STOCK"
     assert item["line_total"] == 0                       # не входит в сумму
-    assert body["summary"]["total_amount"] == 0
-    assert body["summary"]["unavailable_count"] == 1
+    assert body["subtotal"] == 0
+    assert body["is_valid"] is False
 
 
 def test_guest_cart_merged_on_login(app_client, fake_b2b):
@@ -80,7 +80,7 @@ def test_empty_cart_returns_200_with_summary(app_client, fake_b2b):
     token, _ = register_buyer(app_client)
     r = app_client.get("/api/v1/cart", headers=auth_headers(token))
     assert r.status_code == 200
-    assert r.json()["items"] == [] and r.json()["summary"]["total_amount"] == 0
+    assert r.json()["items"] == [] and r.json()["subtotal"] == 0
 
 
 def test_add_over_stock_returns_409(app_client, fake_b2b):
