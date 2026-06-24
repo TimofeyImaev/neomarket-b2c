@@ -119,7 +119,9 @@ def checkout(db: Session, b2b: B2BClient, buyer_id: str, body: dict,
         addr = db.get(Address, address_id)
         if addr:
             address_snapshot = _json.dumps({
-                "id": addr.id, "country": addr.country, "region": None,
+                "id": addr.id,
+                "created_at": _iso(addr.created_at),
+                "country": addr.country, "region": None,
                 "city": addr.city, "street": addr.street, "building": addr.building,
                 "apartment": addr.apartment, "postal_code": addr.postal_code,
                 "recipient_name": addr.recipient_name, "recipient_phone": addr.recipient_phone,
