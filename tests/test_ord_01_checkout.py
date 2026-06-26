@@ -51,8 +51,10 @@ def test_partial_reserve_failure_returns_409(app_client, fake_b2b):
     fake_b2b.reserve_ok = False
     fake_b2b.failed_items = [{"sku_id": sku, "requested": 1, "available": 0,
                                "reason": "INSUFFICIENT_STOCK"}]
+    addr = make_address(app_client, token)
+    pm = make_payment(app_client, token)
 
-    r = _checkout(app_client, token)
+    r = _checkout(app_client, token, address_id=addr, payment_method_id=pm)
 
     assert r.status_code == 409
     body = r.json()
@@ -81,8 +83,10 @@ def test_b2b_unavailable_returns_503(app_client, fake_b2b):
     sku = fake_b2b.add_sku(str(uuid.uuid4()), str(uuid.uuid4()), price=100, available=5)
     _add_to_cart(app_client, token, sku, quantity=1)
     fake_b2b.unavailable = True
+    addr = make_address(app_client, token)
+    pm = make_payment(app_client, token)
 
-    r = _checkout(app_client, token)
+    r = _checkout(app_client, token, address_id=addr, payment_method_id=pm)
 
     assert r.status_code == 503
     assert r.json()["code"] == "B2B_UNAVAILABLE"
