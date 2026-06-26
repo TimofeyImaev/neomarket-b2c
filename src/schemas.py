@@ -71,8 +71,8 @@ class CartItemQuantityRequest(BaseModel):
 # ----- Orders (канон b2c-9 checkout) -----
 class OrderCreateRequest(BaseModel):
     # По b2c/openapi.yaml:1241-1249: items берутся из корзины, не из тела
-    address_id: str | None = Field(default=None)
-    payment_method_id: str | None = Field(default=None)
+    address_id: str
+    payment_method_id: str
 
 
 class OrderCancelRequest(BaseModel):
