@@ -4,7 +4,7 @@ POST /api/v1/orders/{id}/cancel. Имена тестов — ТОЧНО из DoD
 import uuid
 
 from src.models import Order
-from tests.conftest import auth_headers, register_buyer
+from tests.conftest import auth_headers, register_buyer, make_address, make_payment
 
 
 def _place_order(app_client, fake_b2b, token):
@@ -13,9 +13,11 @@ def _place_order(app_client, fake_b2b, token):
     h = auth_headers(token)
     # Add to cart — checkout reads items from cart per b2c/openapi.yaml:1241-1249
     app_client.post("/api/v1/cart/items", headers=h, json={"sku_id": sku, "quantity": 1})
+    addr = make_address(app_client, token)
+    pm = make_payment(app_client, token)
     r = app_client.post("/api/v1/orders",
                         headers={**h, "Idempotency-Key": str(uuid.uuid4())},
-                        json={})
+                        json={"address_id": addr, "payment_method_id": pm})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
